@@ -1,20 +1,22 @@
-import os
-import pickle
 import sqlite3
 import streamlit as st
 from streamlit_option_menu import option_menu
 
 # Set page configuration
-st.set_page_config(page_title="Health Assistant",
-                   layout="wide",
-                   page_icon="🧑‍⚕️")
+st.set_page_config(
+    page_title="Health Assistant",
+    layout="wide",
+    page_icon="🧑‍⚕️"
+)
 
 # Initialize SQLite database
-conn = sqlite3.connect('users.db')
+conn = sqlite3.connect('health_records.db')
 c = conn.cursor()
-# Create users table
+
+# Create users table if not exists
 c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT, password TEXT)''')
-# Create tables for storing disease details
+
+# Create diabetes details table if not exists
 c.execute('''CREATE TABLE IF NOT EXISTS diabetes_details (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -28,6 +30,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS diabetes_details (
                 DiabetesPedigreeFunction REAL, 
                 Age REAL,
                 diagnosis TEXT)''')
+
+# Create heart disease details table if not exists
 c.execute('''CREATE TABLE IF NOT EXISTS heart_disease_details (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -46,6 +50,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS heart_disease_details (
                 ca REAL, 
                 thal REAL,
                 diagnosis TEXT)''')
+
+# Create Parkinson's disease details table if not exists
 c.execute('''CREATE TABLE IF NOT EXISTS parkinsons_details (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -73,6 +79,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS parkinsons_details (
                 D2 REAL, 
                 PPE REAL,
                 diagnosis TEXT)''')
+
+# Commit changes to the database
 conn.commit()
 
 # Function to add user to the database
@@ -100,322 +108,270 @@ def add_heart_disease_details(username, patient_name, details):
               (username, patient_name, *details))
     conn.commit()
 
-# Function to add Parkinson's details
+# Function to add Parkinson's disease details
 def add_parkinsons_details(username, patient_name, details):
-    c.execute('''INSERT INTO parkinsons_details (username, patient_name, fo, fhi, flo, Jitter_percent, Jitter_Abs, RAP, PPQ, DDP, Shimmer, Shimmer_dB, APQ3, APQ5, APQ, DDA, NHR, HNR, RPDE, DFA, spread1, spread2, D2, PPE, diagnosis)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
-              (username, patient_name, *details))
-    conn.commit()
+    try:
+        c.execute('''INSERT INTO parkinsons_details (username, patient_name, fo, fhi, flo, Jitter_percent, Jitter_Abs, RAP, PPQ, DDP, Shimmer, Shimmer_dB, APQ3, APQ5, APQ, DDA, NHR, HNR, RPDE, DFA, spread1, spread2, D2, PPE, diagnosis)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                  (username, patient_name, *details))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Database insertion error: {e}")
 
-# Create session state for login and signup
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "signed_up" not in st.session_state:
-    st.session_state["signed_up"] = False
+# Function to get user details
+def get_user_details(username):
+    c.execute('SELECT * FROM users WHERE username = ?', (username,))
+    data = c.fetchone()
+    return data
 
-# Sign-up page
-if not st.session_state["signed_up"]:
-    st.title("Sign Up")
+# Function to show home page
+def show_home_page():
+    st.title("Welcome to Health Assistant")
+    st.markdown(
+        """
+        <style>
+        body {
+            background-image: url('img1.png'); /* Replace with your image path */
+            background-size: cover;
+            background-repeat: no-repeat;
+            height: 100vh;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    st.write("Please use the options in the sidebar to navigate through the app.")
 
-    signup_username = st.text_input("Enter a username")
-    signup_password = st.text_input("Enter a password", type="password")
-    signup_button = st.button("Sign Up")
 
-    if signup_button:
-        if signup_username and signup_password:
-            add_user(signup_username, signup_password)
-            st.success("Successfully signed up! Please login now.")
-            st.session_state["signed_up"] = True
-        else:
-            st.error("Please fill in both fields")
 
-# Login page
-if st.session_state["signed_up"] and not st.session_state["logged_in"]:
+# Function to show login page
+def show_login_page():
     st.title("Login")
-
-    login_username = st.text_input("Username")
-    login_password = st.text_input("Password", type="password")
-    login_button = st.button("Login")
-
-    if login_button:
-        user = login_user(login_username, login_password)
+    st.markdown(
+        """
+        <style>
+        body {
+            background-image: url("img2.png");
+            background-size: cover;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        user = login_user(username, password)
         if user:
-            st.session_state["logged_in"] = True
-            st.session_state["username"] = login_username
-            st.success("Successfully logged in!")
+            st.session_state["user"] = username
+            st.success("Logged in successfully")
         else:
             st.error("Invalid username or password")
 
-# Main application
-if st.session_state["logged_in"]:
-    # getting the working directory of the main.py
-    working_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # loading the saved models
-    diabetes_model = pickle.load(open(f'{working_dir}/saved_models/diabetes_model.sav', 'rb'))
-    heart_disease_model = pickle.load(open(f'{working_dir}/saved_models/heart_disease_model.sav', 'rb'))
-    parkinsons_model = pickle.load(open(f'{working_dir}/saved_models/parkinsons_model.sav', 'rb'))
-
-    # sidebar for navigation
-    with st.sidebar:
-        selected = option_menu('Multiple Disease Prediction System',
-                               ['Diabetes Prediction',
-                                'Heart Disease Prediction',
-                                'Parkinsons Prediction',
-                                'Patient Details'],
-                               menu_icon='hospital-fill',
-                               icons=['activity', 'heart', 'person', 'list'],
-                               default_index=0)
-
-    # Diabetes Prediction Page
-    if selected == 'Diabetes Prediction':
-        # page title
-        st.title('Diabetes Prediction using ML')
-
-        # getting the input data from the user
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            patient_name = st.text_input('Patient Name')
-            Pregnancies = st.text_input('Number of Pregnancies')
-
-        with col2:
-            Glucose = st.text_input('Glucose Level')
-
-        with col3:
-            BloodPressure = st.text_input('Blood Pressure')
-        with col3:
-            BloodPressure = st.text_input('Blood Pressure value')
-
-        with col1:
-            SkinThickness = st.text_input('Skin Thickness value')
-
-        with col2:
-            Insulin = st.text_input('Insulin Level')
-
-        with col3:
-            BMI = st.text_input('BMI value')
-
-        with col1:
-            DiabetesPedigreeFunction = st.text_input('Diabetes Pedigree Function value')
-
-        with col2:
-            Age = st.text_input('Age of the Person')
-
-        # code for Prediction
-        diab_diagnosis = ''
-
-        # creating a button for Prediction
-        if st.button('Diabetes Test Result'):
-            if all([patient_name, Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age]):
-                user_input = [Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age]
-
-                user_input = [float(x) if x else 0.0 for x in user_input]
-
-                diab_prediction = diabetes_model.predict([user_input])
-
-                if diab_prediction[0] == 1:
-                    diab_diagnosis = 'The person is diabetic'
-                else:
-                    diab_diagnosis = 'The person is not diabetic'
-                
-                add_diabetes_details(st.session_state["username"], patient_name, user_input + [diab_diagnosis])
-            else:
-                st.error("Please fill in all fields to proceed with the prediction.")
-
-        st.success(diab_diagnosis)
-
-    # Heart Disease Prediction Page
-    if selected == 'Heart Disease Prediction':
-        # page title
-        st.title('Heart Disease Prediction using ML')
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            patient_name = st.text_input('Patient Name')
-            age = st.text_input('Age')
-
-        with col2:
-            sex = st.text_input('Sex')
-
-        with col3:
-            cp = st.text_input('Chest Pain types')
-
-        with col1:
-            trestbps = st.text_input('Resting Blood Pressure')
-
-        with col2:
-            chol = st.text_input('Serum Cholestoral in mg/dl')
-
-        with col3:
-            fbs = st.text_input('Fasting Blood Sugar > 120 mg/dl')
-
-        with col1:
-            restecg = st.text_input('Resting Electrocardiographic results')
-
-        with col2:
-            thalach = st.text_input('Maximum Heart Rate achieved')
-
-        with col3:
-            exang = st.text_input('Exercise Induced Angina')
-
-        with col1:
-            oldpeak = st.text_input('ST depression induced by exercise')
-
-        with col2:
-            slope = st.text_input('Slope of the peak exercise ST segment')
-
-        with col3:
-            ca = st.text_input('Major vessels colored by flourosopy')
-
-        with col1:
-            thal = st.text_input('thal: 0 = normal; 1 = fixed defect; 2 = reversable defect')
-
-        # code for Prediction
-        heart_diagnosis = ''
-
-        # creating a button for Prediction
-        if st.button('Heart Disease Test Result'):
-            if all([patient_name, age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]):
-                user_input = [age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]
-
-                user_input = [float(x) if x else 0.0 for x in user_input]
-
-                heart_prediction = heart_disease_model.predict([user_input])
-
-                if heart_prediction[0] == 1:
-                    heart_diagnosis = 'The person is having heart disease'
-                else:
-                    heart_diagnosis = 'The person does not have any heart disease'
-                
-                add_heart_disease_details(st.session_state["username"], patient_name, user_input + [heart_diagnosis])
-            else:
-                st.error("Please fill in all fields to proceed with the prediction.")
-
-        st.success(heart_diagnosis)
-
-    # Parkinson's Prediction Page
-    if selected == "Parkinsons Prediction":
-        # page title
-        st.title("Parkinson's Disease Prediction using ML")
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        with col1:
-            patient_name = st.text_input('Patient Name')
-            fo = st.text_input('MDVP:Fo(Hz)')
-
-        with col2:
-            fhi = st.text_input('MDVP:Fhi(Hz)')
-
-        with col3:
-            flo = st.text_input('MDVP:Flo(Hz)')
-
-        with col4:
-            Jitter_percent = st.text_input('MDVP:Jitter(%)')
-
-        with col5:
-            Jitter_Abs = st.text_input('MDVP:Jitter(Abs)')
-
-        with col1:
-            RAP = st.text_input('MDVP:RAP')
-
-        with col2:
-            PPQ = st.text_input('MDVP:PPQ')
-
-        with col3:
-            DDP = st.text_input('Jitter:DDP')
-
-        with col4:
-            Shimmer = st.text_input('MDVP:Shimmer')
-
-        with col5:
-            Shimmer_dB = st.text_input('MDVP:Shimmer(dB)')
-
-        with col1:
-            APQ3 = st.text_input('Shimmer:APQ3')
-
-        with col2:
-            APQ5 = st.text_input('Shimmer:APQ5')
-
-        with col3:
-            APQ = st.text_input('MDVP:APQ')
-
-        with col4:
-            DDA = st.text_input('Shimmer:DDA')
-
-        with col5:
-            NHR = st.text_input('NHR')
-
-        with col1:
-            HNR = st.text_input('HNR')
-
-        with col2:
-            RPDE = st.text_input('RPDE')
-
-        with col3:
-            DFA = st.text_input('DFA')
-
-        with col4:
-            spread1 = st.text_input('spread1')
-
-        with col5:
-            spread2 = st.text_input('spread2')
-
-        with col1:
-            D2 = st.text_input('D2')
-
-        with col2:
-            PPE = st.text_input('PPE')
-
-        # code for Prediction
-        parkinsons_diagnosis = ''
-
-        # creating a button for Prediction    
-        if st.button("Parkinson's Test Result"):
-            if all([patient_name, fo, fhi, flo, Jitter_percent, Jitter_Abs, RAP, PPQ, DDP, Shimmer, Shimmer_dB, APQ3, APQ5, APQ, DDA, NHR, HNR, RPDE, DFA, spread1, spread2, D2, PPE]):
-                user_input = [fo, fhi, flo, Jitter_percent, Jitter_Abs, RAP, PPQ, DDP, Shimmer, Shimmer_dB, APQ3, APQ5, APQ, DDA, NHR, HNR, RPDE, DFA, spread1, spread2, D2, PPE]
-
-                user_input = [float(x) if x else 0.0 for x in user_input]
-
-                parkinsons_prediction = parkinsons_model.predict([user_input])
-
-                if parkinsons_prediction[0] == 1:
-                    parkinsons_diagnosis = "The person has Parkinson's disease"
-                else:
-                    parkinsons_diagnosis = "The person does not have Parkinson's disease"
-                
-                add_parkinsons_details(st.session_state["username"], patient_name, user_input + [parkinsons_diagnosis])
-            else:
-                st.error("Please fill in all fields to proceed with the prediction.")
-
-        st.success(parkinsons_diagnosis)
-
-    # Patient Details Page
-    if selected == "Patient Details":
-        st.title("Patient Details")
-
-        # Display Diabetes Patients
-        st.subheader("Diabetes Patients")
-        c.execute("SELECT patient_name, diagnosis FROM diabetes_details WHERE username = ?", (st.session_state["username"],))
-        diabetes_patients = c.fetchall()
-        for patient in diabetes_patients:
-            st.write(f"Patient Name: {patient[0]}, Diagnosis: {patient[1]}")
-
-        # Display Heart Disease Patients
-        st.subheader("Heart Disease Patients")
-        c.execute("SELECT patient_name, diagnosis FROM heart_disease_details WHERE username = ?", (st.session_state["username"],))
-        heart_patients = c.fetchall()
-        for patient in heart_patients:
-            st.write(f"Patient Name: {patient[0]}, Diagnosis: {patient[1]}")
-
-        # Display Parkinson's Patients
-        st.subheader("Parkinson's Patients")
-        c.execute("SELECT patient_name, diagnosis FROM parkinsons_details WHERE username = ?", (st.session_state["username"],))
-        parkinsons_patients = c.fetchall()
-        for patient in parkinsons_patients:
-            st.write(f"Patient Name: {patient[0]}, Diagnosis: {patient[1]}")
-
-conn.close()
+# Function to show sign-up page
+def show_signup_page():
+    st.title("Sign Up")
+    st.markdown(
+        """
+        <style>
+        body {
+            background-image: url("img3.png");
+            background-size: cover;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Sign Up"):
+        add_user(username, password)
+        st.success("Account created successfully")
+
+# Function to show contact page
+# Function to show contact page
+def show_contact_page():
+    st.title("Contact Us")
+    st.write("""
+    ## Contact Information
+    If you have any questions, feedback, or inquiries, please don't hesitate to contact us. We're here to help!
+    
+    ### General Inquiries
+    For general inquiries or support related to Health Assistant, you can reach us at:
+    
+    - **Email:** vallepunarayanaswamy27@gmail.com
+    
+    ### Technical Support
+    Need technical assistance or facing issues with the app? Our technical support team is available to assist you:
+    
+    - **Email:** techsupport@healthassistant.com
+    
+    ### Business Partnerships
+    Interested in partnering with Health Assistant or exploring business opportunities? Contact our partnerships team:
+    
+    - **Email:** partnerships@healthassistant.com
+    
+    ### Customer Support
+    For customer support related to your account, billing inquiries, or any other customer-related matters, please contact:
+    
+    - **Email:** customersupport@healthassistant.com
+    
+    ### Feedback
+    Your feedback is valuable to us! We welcome any suggestions or comments to help us improve Health Assistant:
+    
+    - **Email:** feedback@healthassistant.com
+    
+    ### Social Media
+    Connect with us on social media to stay updated with the latest news, tips, and features of Health Assistant:
+    
+    - **Facebook:** [Health Assistant Facebook Page](https://www.facebook.com/healthassistant)
+    - **Twitter:** [@HealthAssistant](https://twitter.com/healthassistant)
+    - **LinkedIn:** [Health Assistant LinkedIn Page](https://www.linkedin.com/company/healthassistant)
+    
+    We look forward to hearing from you and providing you with excellent service and support!
+    """)
+
+
+# Function to show about us page
+# Function to show about us page
+def show_about_page():
+    st.title("About Us")
+    st.write("""
+    ## Welcome to Health Assistant
+    Health Assistant is a comprehensive health management application designed to assist individuals and healthcare providers in managing health records and diagnosing various diseases. Our mission is to leverage technology to improve health outcomes and make healthcare more accessible and efficient.
+
+    ### Our Features
+    - **User-Friendly Interface:** Easy to navigate and use, ensuring a seamless experience for users of all ages.
+    - **Health Records Management:** Securely store and manage health records, making it easier for users to keep track of their medical history.
+    - **Disease Prediction:** Utilize advanced algorithms to predict the likelihood of diabetes, heart disease, and Parkinson's disease based on user input.
+    - **Data Privacy:** We prioritize your privacy and ensure that all your health data is stored securely and confidentially.
+
+    ### Our Mission
+    Our mission is to empower individuals to take control of their health by providing them with the tools and information they need to make informed decisions. We believe in the power of technology to transform healthcare and are committed to continuous improvement and innovation.
+
+    ### Our Team
+    Our team consists of experienced healthcare professionals, data scientists, and software developers who are passionate about improving health outcomes. We work together to ensure that Health Assistant is always at the cutting edge of healthcare technology.
+
+    ### Contact Us
+    If you have any questions or need support, feel free to reach out to us at vallepunarayanaswamy27@gmail.com. We are here to help!
+
+    Thank you for choosing Health Assistant. We are dedicated to helping you achieve better health and wellness.
+    """)
+
+
+# Function to show diabetes prediction page
+def show_diabetes_prediction_page():
+    if "user" not in st.session_state:
+        st.warning("Please log in to use this feature.")
+        return
+    st.title("Diabetes Prediction")
+    patient_name = st.text_input("Patient Name")
+    Pregnancies = st.number_input("Pregnancies")
+    Glucose = st.number_input("Glucose")
+    BloodPressure = st.number_input("Blood Pressure")
+    SkinThickness = st.number_input("Skin Thickness")
+    Insulin = st.number_input("Insulin")
+    BMI = st.number_input("BMI")
+    DiabetesPedigreeFunction = st.number_input("Diabetes Pedigree Function")
+    Age = st.number_input("Age")
+    if st.button("Predict"):
+        details = [Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age]
+        # Add prediction logic here
+        diagnosis = "Positive" if Glucose > 140 else "Negative"  # Example logic
+        add_diabetes_details(st.session_state["user"], patient_name, details + [diagnosis])
+        st.success(f"Diagnosis: {diagnosis}")
+
+# Function to show heart disease prediction page
+def show_heart_disease_prediction_page():
+    if "user" not in st.session_state:
+        st.warning("Please log in to use this feature.")
+        return
+    st.title("Heart Disease Prediction")
+    patient_name = st.text_input("Patient Name")
+    age = st.number_input("Age")
+    sex = st.selectbox("Sex", [0, 1])
+    cp = st.number_input("CP")
+    trestbps = st.number_input("Trestbps")
+    chol = st.number_input("Chol")
+    fbs = st.number_input("FBS")
+    restecg = st.number_input("Restecg")
+    thalach = st.number_input("Thalach")
+    exang = st.selectbox("Exang", [0, 1])
+    oldpeak = st.number_input("Oldpeak")
+    slope = st.number_input("Slope")
+    ca = st.number_input("CA")
+    thal = st.number_input("Thal")
+    if st.button("Predict"):
+        details = [age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]
+        # Add prediction logic here
+        diagnosis = "Positive" if thalach < 150 else "Negative"  # Example logic
+        add_heart_disease_details(st.session_state["user"], patient_name, details + [diagnosis])
+        st.success(f"Diagnosis: {diagnosis}")
+
+# Function to show Parkinson's prediction page
+def show_parkinsons_prediction_page():
+    if "user" not in st.session_state:
+        st.warning("Please log in to use this feature.")
+        return
+    st.title("Parkinson's Prediction")
+    patient_name = st.text_input("Patient Name")
+    fo = st.number_input("Fo")
+    fhi = st.number_input("Fhi")
+    flo = st.number_input("Flo")
+    Jitter_percent = st.number_input("Jitter_percent")
+    Jitter_Abs = st.number_input("Jitter_Abs")
+    RAP = st.number_input("RAP")
+    PPQ = st.number_input("PPQ")
+    DDP = st.number_input("DDP")
+    Shimmer = st.number_input("Shimmer")
+    Shimmer_dB = st.number_input("Shimmer_dB")
+    APQ3 = st.number_input("APQ3")
+    APQ5 = st.number_input("APQ5")
+    APQ = st.number_input("APQ")
+    DDA = st.number_input("DDA")
+    NHR = st.number_input("NHR")
+    HNR = st.number_input("HNR")
+    RPDE = st.number_input("RPDE")
+    DFA = st.number_input("DFA")
+    spread1 = st.number_input("Spread1")
+    spread2 = st.number_input("Spread2")
+    D2 = st.number_input("D2")
+    PPE = st.number_input("PPE")
+    if st.button("Predict"):
+        details = [fo, fhi, flo, Jitter_percent, Jitter_Abs, RAP, PPQ, DDP, Shimmer, Shimmer_dB, APQ3, APQ5, APQ, DDA, NHR, HNR, RPDE, DFA, spread1, spread2, D2, PPE]
+        
+        if len(details) != 22:
+            st.error("Error: Mismatch in the number of features. Please check the inputs.")
+            return
+        
+        # Add prediction logic here
+        diagnosis = "Positive" if HNR < 20 else "Negative"  # Example logic
+        
+        try:
+            add_parkinsons_details(st.session_state["user"], patient_name, details + [diagnosis])
+            st.success(f"Diagnosis: {diagnosis}")
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# Sidebar navigation
+with st.sidebar:
+    selected = option_menu(
+        menu_title="Main Menu",
+        options=["Home", "Login", "Sign Up", "Diabetes Prediction", "Heart Disease Prediction", "Parkinson's Prediction", "Contact", "About Us"],
+        icons=["house", "box-arrow-in-right", "person-plus", "activity", "heart", "soundwave", "envelope", "info-circle"],
+        menu_icon="cast",
+        default_index=0,
+    )
+
+# Navigation options
+if selected == "Home":
+    show_home_page()
+elif selected == "Login":
+    show_login_page()
+elif selected == "Sign Up":
+    show_signup_page()
+elif selected == "Diabetes Prediction":
+    show_diabetes_prediction_page()
+elif selected == "Heart Disease Prediction":
+    show_heart_disease_prediction_page()
+elif selected == "Parkinson's Prediction":
+    show_parkinsons_prediction_page()
+elif selected == "Contact":
+    show_contact_page()
+elif selected == "About Us":
+    show_about_page()
 
